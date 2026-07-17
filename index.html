@@ -1,0 +1,1316 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>施工人工工时计算系统</title>
+  <script src="js/xlsx.full.min.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background: #f0f2f5; min-height: 100vh; }
+    
+    .header { background: linear-gradient(135deg, #1890ff 0%, #096dd9 100%); color: white; padding: 30px 20px; text-align: center; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+    .header h1 { font-size: 28px; font-weight: 600; margin-bottom: 8px; }
+    .header p { opacity: 0.9; font-size: 14px; }
+    
+    .container { max-width: 1400px; margin: 0 auto; padding: 24px; }
+    
+    .upload-card { background: white; border-radius: 12px; padding: 40px; margin-bottom: 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); text-align: center; }
+    .upload-area { border: 2px dashed #d9d9d9; border-radius: 8px; padding: 40px 20px; transition: all 0.3s; cursor: pointer; }
+    .upload-area:hover, .upload-area.dragover { border-color: #1890ff; background: #f0f5ff; }
+    .upload-icon { font-size: 48px; color: #1890ff; margin-bottom: 16px; }
+    .upload-text { font-size: 16px; color: #666; margin-bottom: 8px; }
+    .upload-hint { font-size: 12px; color: #999; }
+    #fileInput { display: none; }
+    
+    .btn { display: inline-flex; align-items: center; justify-content: center; padding: 10px 24px; border-radius: 6px; font-size: 14px; font-weight: 500; cursor: pointer; transition: all 0.3s; border: none; }
+    .btn-primary { background: #1890ff; color: white; }
+    .btn-primary:hover { background: #096dd9; }
+    .btn-primary:disabled { background: #ccc; cursor: not-allowed; }
+    .btn-secondary { background: white; color: #666; border: 1px solid #d9d9d9; }
+    .btn-secondary:hover { background: #f5f5f5; }
+    .btn-success { background: #52c41a; color: white; }
+    .btn-success:hover { background: #389e0d; }
+    .btn-warning { background: #fa8c16; color: white; }
+    .btn-warning:hover { background: #d46b08; }
+    
+    .tabs { display: flex; background: white; border-radius: 8px; padding: 4px; margin-bottom: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+    .tab { flex: 1; text-align: center; padding: 12px; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 500; color: #666; transition: all 0.3s; }
+    .tab.active { background: #1890ff; color: white; }
+    .tab:hover { color: #1890ff; }
+    
+    .card { background: white; border-radius: 8px; padding: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); margin-bottom: 16px; }
+    .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid #f0f0f0; }
+    .card-title { font-size: 16px; font-weight: 600; color: #333; }
+    
+    .stats { display: flex; gap: 16px; margin-bottom: 16px; }
+    .stat-item { flex: 1; background: linear-gradient(135deg, #f6ffed 0%, #d9f7be 100%); border-radius: 8px; padding: 16px; text-align: center; }
+    .stat-value { font-size: 24px; font-weight: 600; color: #52c41a; }
+    .stat-label { font-size: 12px; color: #666; margin-top: 4px; }
+    .stat-item:nth-child(2) { background: linear-gradient(135deg, #e6f7ff 0%, #b3dfff 100%); }
+    .stat-item:nth-child(2) .stat-value { color: #1890ff; }
+    .stat-item:nth-child(3) { background: linear-gradient(135deg, #fff7e6 0%, #ffe58f 100%); }
+    .stat-item:nth-child(3) .stat-value { color: #fa8c16; }
+    
+    .table-wrapper { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid #f0f0f0; }
+    th { background: #fafafa; font-weight: 600; color: #333; white-space: nowrap; }
+    tr:hover { background: #fafafa; }
+    
+    .tag { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 500; }
+    .tag-normal { background: #d9f7be; color: #389e0d; }
+    .tag-entry { background: #91caff; color: #1890ff; }
+    .tag-exit { background: #ffe58f; color: #fa8c16; }
+    .tag-cross { background: #ffccc7; color: #cf1322; }
+    
+    .loading-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 1000; }
+    .loading-spinner { width: 40px; height: 40px; border: 4px solid #f3f3f3; border-top: 4px solid #1890ff; border-radius: 50%; animation: spin 1s linear infinite; }
+    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    
+    .message { position: fixed; top: 20px; right: 20px; padding: 12px 24px; border-radius: 6px; font-size: 14px; z-index: 1001; animation: fadeIn 0.3s; }
+    .message-success { background: #f6ffed; color: #52c41a; border: 1px solid #b7eb8f; }
+    .message-error { background: #fff2f0; color: #cf1322; border: 1px solid #ffccc7; }
+    .message-warning { background: #fffbe6; color: #faad14; border: 1px solid #ffe58f; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(-20px); } to { opacity: 1; transform: translateY(0); } }
+    
+    .empty-state { text-align: center; padding: 60px 20px; color: #999; }
+    .empty-icon { font-size: 48px; margin-bottom: 16px; }
+    
+    .footer { text-align: center; padding: 20px; color: #999; font-size: 12px; }
+    
+    .sample-data-card { background: #f6ffed; border: 1px solid #b7eb8f; border-radius: 8px; padding: 20px; margin-top: 16px; text-align: left; }
+    .sample-data-card h4 { color: #52c41a; margin-bottom: 12px; }
+    .sample-data-card pre { background: white; padding: 12px; border-radius: 4px; font-size: 12px; overflow-x: auto; color: #666; }
+    .template-table { border-collapse: collapse; width: 100%; font-size: 12px; margin-top: 12px; }
+    .template-table th, .template-table td { border: 1px solid #d9d9d9; padding: 8px; text-align: left; }
+    .template-table th { background: #f5f5f5; color: #666; }
+    .required { color: #cf1322; }
+    
+    .settings-card { background: #fafafa; border: 1px solid #e8e8e8; border-radius: 8px; padding: 20px; margin-bottom: 24px; }
+    .settings-card h4 { margin-bottom: 16px; color: #333; font-size: 15px; }
+    .settings-row { display: flex; flex-wrap: wrap; gap: 20px; margin-bottom: 16px; }
+    .setting-item { display: flex; flex-direction: column; gap: 4px; }
+    .setting-item label { font-size: 13px; color: #666; font-weight: 500; }
+    .setting-item input { padding: 6px 10px; border: 1px solid #d9d9d9; border-radius: 4px; font-size: 13px; width: 120px; }
+    .setting-item select { padding: 6px 10px; border: 1px solid #d9d9d9; border-radius: 4px; font-size: 13px; width: 120px; }
+    .settings-btn-group { display: flex; gap: 10px; margin-top: 16px; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>施工人工工时计算系统</h1>
+    <p>上传Excel文件，自动计算每人每日工时</p>
+  </div>
+
+  <div class="container">
+    <div class="upload-card">
+      <div class="upload-area" id="uploadArea">
+        <div class="upload-icon">📁</div>
+        <div class="upload-text">点击或拖拽Excel文件到此处上传</div>
+        <div class="upload-hint">支持 .xlsx, .xls 格式 | 支持批量导入多个文件</div>
+      </div>
+      <input type="file" id="fileInput" accept=".xlsx,.xls" multiple>
+      <div style="margin-top: 20px; display: flex; justify-content: center; gap: 12px;">
+        <button class="btn btn-primary" id="uploadBtn">选择文件</button>
+        <button class="btn btn-success" id="useSampleBtn">使用示例数据</button>
+        <button class="btn btn-warning" id="downloadTemplateBtn">下载导入模板</button>
+      </div>
+      <div class="sample-data-card">
+        <h4>� 导入模板格式</h4>
+        <table class="template-table">
+          <thead>
+            <tr>
+              <th>岗位 <span class="required">*</span></th>
+              <th>姓名 <span class="required">*</span></th>
+              <th>出勤标段</th>
+              <th>出勤工区</th>
+              <th>防护区等级</th>
+              <th>门禁设备名称</th>
+              <th>进出方向 <span class="required">*</span></th>
+              <th>出勤日期 <span class="required">*</span></th>
+              <th>出勤时间 <span class="required">*</span></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>电工</td>
+              <td>张三</td>
+              <td>一标段</td>
+              <td>A工区</td>
+              <td>二级</td>
+              <td>东门</td>
+              <td>进</td>
+              <td>2024-01-01</td>
+              <td>08:00:00</td>
+            </tr>
+            <tr>
+              <td>电工</td>
+              <td>张三</td>
+              <td>一标段</td>
+              <td>A工区</td>
+              <td>二级</td>
+              <td>东门</td>
+              <td>出</td>
+              <td>2024-01-01</td>
+              <td>17:00:00</td>
+            </tr>
+          </tbody>
+        </table>
+        <p style="font-size: 12px; color: #666; margin-top: 8px;">
+          <span class="required">*</span> 必填项 | 进出方向支持：进/进场/入（进场），出/出场（出场）
+        </p></div>
+      </div>
+    </div>
+
+    <div class="settings-card">
+      <h4>⚙️ 工时计算设置</h4>
+      <div class="settings-row">
+        <div class="setting-item">
+          <label>午休扣减时间（小时）</label>
+          <select id="lunchDeduction">
+            <option value="0">0小时</option>
+            <option value="0.5">0.5小时</option>
+            <option value="1" selected>1小时</option>
+            <option value="1.5">1.5小时</option>
+            <option value="2">2小时</option>
+          </select>
+        </div>
+        <div class="setting-item">
+          <label>仅有出场时预设入场时间</label>
+          <input type="time" id="defaultEntryTime" value="07:00">
+        </div>
+        <div class="setting-item">
+          <label>仅有入场时预设出场时间</label>
+          <input type="time" id="defaultExitTime" value="17:30">
+        </div>
+      </div>
+      <div class="settings-btn-group">
+        <button class="btn btn-secondary" id="resetSettingsBtn">恢复默认设置</button>
+      </div>
+    </div>
+
+    <div class="settings-card">
+      <h4>📅 节假日设置</h4>
+      <div class="settings-row">
+        <div class="setting-item">
+          <label>开始日期</label>
+          <input type="date" id="holidayStartDate">
+        </div>
+        <div class="setting-item">
+          <label>结束日期</label>
+          <input type="date" id="holidayEndDate">
+        </div>
+        <div class="setting-item">
+          <label>节日名称</label>
+          <select id="holidayName" style="width: 120px;">
+            <option value="元旦">元旦</option>
+            <option value="春节">春节</option>
+            <option value="春节(除夕)">春节(除夕)</option>
+            <option value="春节(初一)">春节(初一)</option>
+            <option value="春节(初二)">春节(初二)</option>
+            <option value="清明节">清明节</option>
+            <option value="劳动节">劳动节</option>
+            <option value="端午节">端午节</option>
+            <option value="中秋节">中秋节</option>
+            <option value="国庆节">国庆节</option>
+            <option value="其他">其他</option>
+          </select>
+        </div>
+      </div>
+      <div class="settings-btn-group">
+        <button class="btn btn-primary" id="addHolidayBtn">添加节假日</button>
+      </div>
+      <div id="holidayList" style="margin-top: 10px; max-height: 200px; overflow-y: auto;">
+      </div>
+    </div>
+
+    <div class="settings-card">
+      <h4>📥 导出设置</h4>
+      <div class="settings-row">
+        <div class="setting-item">
+          <label>导出类型（可多选）</label>
+          <div style="display: flex; flex-direction: column; gap: 6px;">
+            <label style="display: flex; align-items: center; gap: 6px; font-weight: normal;">
+              <input type="checkbox" class="export-type" value="detail"> 工时明细
+            </label>
+            <label style="display: flex; align-items: center; gap: 6px; font-weight: normal;">
+              <input type="checkbox" class="export-type" value="summary"> 工时汇总（按人）
+            </label>
+            <label style="display: flex; align-items: center; gap: 6px; font-weight: normal;">
+              <input type="checkbox" class="export-type" value="normalDetail" checked> 仅导出正常类型明细
+            </label>
+            <label style="display: flex; align-items: center; gap: 6px; font-weight: normal;">
+              <input type="checkbox" class="export-type" value="normalSummary" checked> 正常类型工时汇总（按人）
+            </label>
+          </div>
+        </div>
+      </div>
+      <div class="settings-btn-group">
+        <button class="btn btn-primary" id="exportSelectedBtn">导出选中类型</button>
+      </div>
+    </div>
+
+    <div id="resultSection" style="display: none;">
+      <div class="tabs">
+        <div class="tab active" data-tab="results">工时明细</div>
+        <div class="tab" data-tab="summary">工时汇总</div>
+      </div>
+
+      <div id="resultsPanel">
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">工时明细</span>
+            <button class="btn btn-secondary" id="exportResultsBtn">导出明细</button>
+          </div>
+          <div class="table-wrapper">
+            <table id="resultsTable"></table>
+          </div>
+        </div>
+      </div>
+
+      <div id="summaryPanel" style="display: none;">
+        <div class="stats">
+          <div class="stat-item">
+            <div class="stat-value" id="totalHours">0</div>
+            <div class="stat-label">总工时（小时）</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-value" id="totalOvertime">0</div>
+            <div class="stat-label">加班工时（小时）</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-value" id="totalDays">0</div>
+            <div class="stat-label">总出勤天数</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-value" id="totalWorkers">0</div>
+            <div class="stat-label">总人数</div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">工时汇总</span>
+            <button class="btn btn-secondary" id="exportSummaryBtn">导出汇总</button>
+          </div>
+          <div class="table-wrapper">
+            <table id="summaryTable"></table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="emptySection">
+      <div class="card">
+        <div class="empty-state">
+          <div class="empty-icon">📊</div>
+          <p>请上传Excel文件或使用示例数据开始计算工时</p>
+          <p style="font-size: 12px; margin-top: 8px;">支持格式：.xlsx, .xls | 建议先下载导入模板</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="loading-overlay" id="loadingOverlay" style="display: none;">
+    <div class="loading-spinner"></div>
+  </div>
+
+  <div class="footer">
+    施工人工工时计算系统 © 2024
+  </div>
+
+  <script>
+    const REQUIRED_HEADERS = ['岗位', '姓名', '进出方向', '出勤日期', '出勤时间']
+    const ALL_HEADERS = ['所属组织', '岗位', '姓名', '出勤标段', '出勤工区', '防护区等级', '门禁设备名称', '进出方向', '出勤日期', '出勤时间']
+
+    function parseTime(timeStr) {
+      if (timeStr === null || timeStr === undefined || timeStr === '') return null
+      
+      if (typeof timeStr === 'number') {
+        const fractionalPart = timeStr - Math.floor(timeStr)
+        const hours = Math.floor(fractionalPart * 24)
+        const minutes = Math.floor((fractionalPart * 24 - hours) * 60)
+        const seconds = Math.floor(((fractionalPart * 24 - hours) * 60 - minutes) * 60)
+        if (hours >= 0 && hours <= 24 && minutes >= 0 && minutes < 60 && seconds >= 0 && seconds < 60) {
+          return new Date(`2000-01-01T${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`).getTime()
+        }
+        return null
+      }
+
+      if (timeStr instanceof Date) {
+        const hours = timeStr.getHours()
+        const minutes = timeStr.getMinutes()
+        const seconds = timeStr.getSeconds()
+        return new Date(`2000-01-01T${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`).getTime()
+      }
+
+      const str = String(timeStr).trim()
+      
+      const timePatterns = [
+        /^(\d{2}):(\d{2}):(\d{2})$/,
+        /^(\d{2}):(\d{2})$/,
+        /^(\d{1,2}):(\d{2}):(\d{2})$/,
+        /^(\d{1,2}):(\d{2})$/,
+        /^(\d{1,2})[\u5c0f\u65f6](\d{1,2})[\u5206\u949f]?$/,
+        /^(\d{1,2})[\u70b9:](\d{1,2})$/
+      ]
+      for (const pattern of timePatterns) {
+        const match = str.match(pattern)
+        if (match) {
+          const hours = parseInt(match[1], 10)
+          const minutes = parseInt(match[2] || '0', 10)
+          const seconds = parseInt(match[3] || '0', 10)
+          if (hours >= 0 && hours <= 24 && minutes >= 0 && minutes < 60 && seconds >= 0 && seconds < 60) {
+            return new Date(`2000-01-01T${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`).getTime()
+          }
+        }
+      }
+      return null
+    }
+
+    function formatTime(timestamp) {
+      const date = new Date(timestamp)
+      return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}:${String(date.getSeconds()).padStart(2, '0')}`
+    }
+
+    function getSettings() {
+      const lunchDeductionHours = parseFloat(document.getElementById('lunchDeduction').value) || 1
+      const defaultEntryTimeStr = document.getElementById('defaultEntryTime').value || '07:00'
+      const defaultExitTimeStr = document.getElementById('defaultExitTime').value || '17:30'
+      
+      const [entryHour, entryMinute] = defaultEntryTimeStr.split(':').map(Number)
+      const [exitHour, exitMinute] = defaultExitTimeStr.split(':').map(Number)
+      
+      return {
+        lunchDeductionHours,
+        defaultEntryTime: new Date(`2000-01-01T${String(entryHour).padStart(2, '0')}:${String(entryMinute).padStart(2, '0')}:00`).getTime(),
+        defaultExitTime: new Date(`2000-01-01T${String(exitHour).padStart(2, '0')}:${String(exitMinute).padStart(2, '0')}:00`).getTime()
+      }
+    }
+
+    function getWeekday(dateStr) {
+      const weekdays = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六']
+      const dateMatch = dateStr.match(/(\d{4})-(\d{2})-(\d{2})/)
+      if (dateMatch) {
+        const date = new Date(dateMatch[1], dateMatch[2] - 1, dateMatch[3])
+        return weekdays[date.getDay()]
+      }
+      return '-'
+    }
+
+    function calculateWorkHours(rawRecords) {
+      const recordsByPersonDate = {}
+      rawRecords.forEach(record => {
+        const organization = record['所属组织'] || ''
+        const name = record['姓名'] || ''
+        const position = record['岗位'] || ''
+        const section = record['出勤标段'] || ''
+        const workArea = record['出勤工区'] || ''
+        const protectionLevel = record['防护区等级'] || ''
+        const deviceName = record['门禁设备名称'] || ''
+        const date = record['出勤日期'] || ''
+        const direction = record['进出方向'] || ''
+        const time = record['出勤时间'] || ''
+        
+        const personKey = name || position
+        if (!personKey || !date || !time) return
+
+        const key = `${personKey}_${date}`
+        if (!recordsByPersonDate[key]) {
+          recordsByPersonDate[key] = { 
+            organization, name, position, section, workArea, protectionLevel, deviceName, 
+            personKey, date, entries: [], exits: [] 
+          }
+        }
+
+        const parsedTime = parseTime(time)
+        if (!parsedTime) return
+
+        if (direction.includes('进') || direction.includes('入')) {
+          recordsByPersonDate[key].entries.push(parsedTime)
+        } else if (direction.includes('出')) {
+          recordsByPersonDate[key].exits.push(parsedTime)
+        }
+      })
+
+      const settings = getSettings()
+      const results = []
+      const DINNER_THRESHOLD = new Date(`2000-01-01T18:00:00`).getTime()
+      const DINNER_DURATION = 1 * 60 * 60 * 1000
+      const INSPECTION_THRESHOLD = 1 * 60 * 60 * 1000
+
+      Object.values(recordsByPersonDate).forEach(item => {
+        let earliestEntry = item.entries.length > 0 ? Math.min(...item.entries) : null
+        let latestExit = item.exits.length > 0 ? Math.max(...item.exits) : null
+
+        let hours = 0
+        let type = '正常'
+        let adjustedEntry = earliestEntry
+        let adjustedExit = latestExit
+
+        if (earliestEntry && latestExit) {
+          let duration = latestExit > earliestEntry ? (latestExit - earliestEntry) : ((latestExit + 24 * 60 * 60 * 1000) - earliestEntry)
+          
+          if (latestExit <= earliestEntry) {
+            type = '跨天'
+            hours = 8
+          } else if (duration < INSPECTION_THRESHOLD) {
+            type = '巡检'
+            hours = parseFloat((duration / (1000 * 60 * 60)).toFixed(2))
+          } else {
+            let lunchDeduction = 0
+            let dinnerDeduction = 0
+
+            const entryHour = new Date(earliestEntry).getHours()
+            const exitHour = new Date(latestExit).getHours()
+            const exitMinutes = new Date(latestExit).getMinutes()
+            const exitTotalMinutes = exitHour * 60 + exitMinutes
+
+            if (entryHour < 13 && exitTotalMinutes >= 13 * 60) {
+              lunchDeduction = settings.lunchDeductionHours * 60 * 60 * 1000
+            }
+
+            if (exitTotalMinutes >= 21 * 60) {
+              dinnerDeduction = DINNER_DURATION
+            }
+
+            hours = parseFloat(((duration - lunchDeduction - dinnerDeduction) / (1000 * 60 * 60)).toFixed(2))
+          }
+        } else if (earliestEntry && !latestExit) {
+          adjustedExit = settings.defaultExitTime
+          let duration = adjustedExit - earliestEntry
+          
+          let lunchDeduction = 0
+          const entryHour = new Date(earliestEntry).getHours()
+          if (entryHour < 13) {
+            lunchDeduction = settings.lunchDeductionHours * 60 * 60 * 1000
+          }
+          
+          hours = parseFloat(((duration - lunchDeduction) / (1000 * 60 * 60)).toFixed(2))
+          type = '仅有入场'
+        } else if (!earliestEntry && latestExit) {
+          adjustedEntry = settings.defaultEntryTime
+          earliestEntry = settings.defaultEntryTime
+          let duration = latestExit > adjustedEntry ? (latestExit - adjustedEntry) : ((latestExit + 24 * 60 * 60 * 1000) - adjustedEntry)
+          
+          let lunchDeduction = 0
+          let dinnerDeduction = 0
+
+          const exitHour = new Date(latestExit).getHours()
+          const exitMinutes = new Date(latestExit).getMinutes()
+          const exitTotalMinutes = exitHour * 60 + exitMinutes
+
+          if (exitTotalMinutes >= 13 * 60) {
+            lunchDeduction = settings.lunchDeductionHours * 60 * 60 * 1000
+          }
+
+          if (exitTotalMinutes >= 21 * 60) {
+            dinnerDeduction = DINNER_DURATION
+          }
+
+          hours = parseFloat(((duration - lunchDeduction - dinnerDeduction) / (1000 * 60 * 60)).toFixed(2))
+          type = '仅有出场'
+        }
+
+        if (hours < 0) hours = 0
+
+        const overtime = hours > 8 ? parseFloat((hours - 8).toFixed(2)) : 0
+
+        results.push({
+          所属组织: item.organization || '-',
+          岗位: item.position || '-',
+          姓名: item.name || '-',
+          出勤标段: item.section || '-',
+          出勤工区: item.workArea || '-',
+          防护区等级: item.protectionLevel || '-',
+          门禁设备名称: item.deviceName || '-',
+          出勤日期: item.date,
+          星期: getWeekday(item.date),
+          入场时间: earliestEntry ? formatTime(earliestEntry) : '-',
+          出场时间: latestExit ? formatTime(latestExit) : '-',
+          工时: parseFloat(hours.toFixed(2)),
+          加班工时: parseFloat(overtime.toFixed(2)),
+          类型: type
+        })
+      })
+
+      return results.sort((a, b) => {
+        if (a.姓名 !== b.姓名) return String(a.姓名).localeCompare(String(b.姓名))
+        if (a.岗位 !== b.岗位) return String(a.岗位).localeCompare(String(b.岗位))
+        return String(a.出勤日期).localeCompare(String(b.出勤日期))
+      })
+    }
+
+    function getSummary(results) {
+      const summary = {}
+      results.forEach(item => {
+        const key = item.姓名 || item.岗位
+        if (!summary[key]) {
+          summary[key] = { 所属组织: item.所属组织 || '-', 姓名: item.姓名 || '-', 岗位: item.岗位 || '-', 总工时: 0, 出勤天数: 0, 加班工时: 0 }
+        }
+        summary[key].总工时 += item.工时
+        summary[key].出勤天数 += 1
+        summary[key].加班工时 += item.加班工时 || 0
+      })
+      return Object.values(summary).sort((a, b) => b.总工时 - a.总工时)
+    }
+
+    function getOrganizationSummary(results) {
+      const summary = {}
+      results.forEach(item => {
+        const key = item.所属组织 || '未分类'
+        if (!summary[key]) {
+          summary[key] = { 所属组织: key, 总工时: 0, 出勤天数: 0, 加班工时: 0, 人数: 0, 人员: new Set() }
+        }
+        summary[key].总工时 += item.工时
+        summary[key].出勤天数 += 1
+        summary[key].加班工时 += item.加班工时 || 0
+        summary[key].人员.add(item.姓名 || item.岗位)
+      })
+      return Object.values(summary).map(item => ({
+        所属组织: item.所属组织,
+        总工时: item.总工时,
+        出勤天数: item.出勤天数,
+        加班工时: item.加班工时,
+        人数: item.人员.size
+      })).sort((a, b) => b.总工时 - a.总工时)
+    }
+
+    function getPositionSummary(results) {
+      const summary = {}
+      results.forEach(item => {
+        const key = item.岗位 || '未分类'
+        if (!summary[key]) {
+          summary[key] = { 岗位: key, 总工时: 0, 出勤天数: 0, 加班工时: 0, 人数: 0, 人员: new Set() }
+        }
+        summary[key].总工时 += item.工时
+        summary[key].出勤天数 += 1
+        summary[key].加班工时 += item.加班工时 || 0
+        summary[key].人员.add(item.姓名 || item.岗位)
+      })
+      return Object.values(summary).map(item => ({
+        岗位: item.岗位,
+        总工时: item.总工时,
+        出勤天数: item.出勤天数,
+        加班工时: item.加班工时,
+        人数: item.人员.size
+      })).sort((a, b) => b.总工时 - a.总工时)
+    }
+
+    function getDateSummary(results) {
+      const summary = {}
+      results.forEach(item => {
+        const key = item.出勤日期
+        if (!summary[key]) {
+          summary[key] = { 出勤日期: key, 星期: item.星期, 总工时: 0, 出勤人数: 0, 人员: new Set() }
+        }
+        summary[key].总工时 += item.工时
+        summary[key].人员.add(item.姓名 || item.岗位)
+      })
+      return Object.values(summary).map(item => ({
+        出勤日期: item.出勤日期,
+        星期: item.星期,
+        总工时: item.总工时,
+        出勤人数: item.人员.size
+      })).sort((a, b) => a.出勤日期.localeCompare(b.出勤日期))
+    }
+
+    function excelDateToJsDate(excelDate) {
+      const baseDate = new Date(Date.UTC(1899, 11, 30))
+      const milliseconds = excelDate * 86400 * 1000
+      return new Date(baseDate.getTime() + milliseconds)
+    }
+
+    const lunarInfo = [
+        0x04bd8, 0x04ae0, 0x0a570, 0x054d5, 0x0d260, 0x0d950, 0x16554, 0x056a0, 0x09ad0, 0x055d2,
+        0x04ae0, 0x0a5b6, 0x0a4d0, 0x0d250, 0x1d255, 0x0b540, 0x0d6a0, 0x0ada2, 0x095b0, 0x14977,
+        0x04970, 0x0a4b0, 0x0b4b5, 0x06a50, 0x06d40, 0x1ab54, 0x02b60, 0x09570, 0x052f2, 0x04970,
+        0x06566, 0x0d4a0, 0x0ea50, 0x06e95, 0x05ad0, 0x02b60, 0x186e3, 0x092e0, 0x1c8d7, 0x0c950,
+        0x0d4a0, 0x1d8a6, 0x0b550, 0x056a0, 0x1a5b4, 0x025d0, 0x092d0, 0x0d2b2, 0x0a950, 0x0b557,
+        0x06ca0, 0x0b550, 0x15355, 0x04da0, 0x0a5d0, 0x14573, 0x052d0, 0x0a9a8, 0x0e950, 0x06aa0,
+        0x0aea6, 0x0ab50, 0x04b60, 0x0aae4, 0x0a570, 0x05260, 0x0f263, 0x0d950, 0x05b57, 0x056a0,
+        0x096d0, 0x04dd5, 0x04ad0, 0x0a4d0, 0x0d4d4, 0x0d250, 0x0d558, 0x0b540, 0x0b5a0, 0x195a6,
+        0x095b0, 0x049b0, 0x0a974, 0x0a4b0, 0x0b27a, 0x06a50, 0x06d40, 0x0af46, 0x0ab60, 0x09570,
+        0x04af5, 0x04970, 0x064b0, 0x074a3, 0x0ea50, 0x06b58, 0x055c0, 0x0ab60, 0x096d5, 0x092e0,
+        0x0c960, 0x0d954, 0x0d4a0, 0x0da50, 0x07552, 0x056a0, 0x0abb7, 0x025d0, 0x092d0, 0x0cab5,
+        0x0a950, 0x0b4a0, 0x0baa4, 0x0ad50, 0x055d9, 0x04ba0, 0x0a5b0, 0x15176, 0x052b0, 0x0a930,
+        0x07954, 0x06aa0, 0x0ad50, 0x05b52, 0x04b60, 0x0a6e6, 0x0a4e0, 0x0d260, 0x0ea65, 0x0d530,
+        0x05aa0, 0x076a3, 0x096d0, 0x04bd7, 0x04ad0, 0x0a4d0, 0x1d0b6, 0x0d250, 0x0d520, 0x0dd45,
+        0x0b5a0, 0x056d0, 0x055b2, 0x049b0, 0x0a577, 0x0a4b0, 0x0aa50, 0x1b255, 0x06d20, 0x0ada0
+      ]
+
+    function getLunarMonthDays(year, month) {
+      return ((lunarInfo[year - 1900] & (0x10000 >> month)) ? 30 : 29)
+    }
+
+    let customHolidays = {}
+
+    function isHoliday(dateStr) {
+      if (customHolidays[dateStr]) {
+        return customHolidays[dateStr]
+      }
+      return ''
+    }
+
+    function solarToLunar(year, month, day) {
+      
+      const solarMonth = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+      const Gan = ["甲", "乙", "丙", "丁", "戊", "己", "庚", "辛", "壬", "癸"]
+      const Zhi = ["子", "丑", "寅", "卯", "辰", "巳", "午", "未", "申", "酉", "戌", "亥"]
+      const Animals = ["鼠", "牛", "虎", "兔", "龙", "蛇", "马", "羊", "猴", "鸡", "狗", "猪"]
+      
+      let i, leap = 0, temp = 0
+      let baseYear = 1900
+      let baseMonth = 1
+      let baseDay = 31
+      
+      if ((year < 1900) || (year > 2100)) return { month: 0, day: 0 }
+      
+      if (year == 1900 && month == 1 && day < 31) return { month: 0, day: 0 }
+      
+      let offset = (Date.UTC(year, month - 1, day) - Date.UTC(1900, 0, 31)) / 86400000
+      
+      for (i = 1900; i < 2101 && offset > 0; i++) {
+        temp = lYearDays(i)
+        offset -= temp
+      }
+      
+      if (offset < 0) {
+        offset += temp
+        i--
+      }
+      
+      let lunarYear = i
+      leap = leapMonth(i)
+      let isLeap = false
+      
+      for (i = 1; i < 13 && offset > 0; i++) {
+        if (leap > 0 && i == (leap + 1) && isLeap == false) {
+          --i
+          isLeap = true
+          temp = leapDays(lunarYear)
+        } else {
+          temp = monthDays(lunarYear, i)
+        }
+        if (isLeap == true && i == (leap + 1)) isLeap = false
+        offset -= temp
+      }
+      
+      if (offset == 0 && leap > 0 && i == leap + 1) {
+        if (isLeap) {
+          isLeap = false
+        } else {
+          isLeap = true
+          --i
+        }
+      }
+      
+      if (offset < 0) {
+        offset += temp
+        --i
+      }
+      
+      return { month: i, day: offset + 1 }
+      
+      function lYearDays(y) {
+        let i, sum = 348
+        for (i = 0x8000; i > 0x8; i >>= 1) {
+          sum += (lunarInfo[y - 1900] & i) ? 1 : 0
+        }
+        return (sum + leapDays(y))
+      }
+      
+      function leapMonth(y) {
+        return (lunarInfo[y - 1900] & 0xf)
+      }
+      
+      function leapDays(y) {
+        if (leapMonth(y)) {
+          return ((lunarInfo[y - 1900] & 0x10000) ? 30 : 29)
+        } else {
+          return (0)
+        }
+      }
+      
+      function monthDays(y, m) {
+        return ((lunarInfo[y - 1900] & (0x10000 >> m)) ? 30 : 29)
+      }
+    }
+
+    function formatDateExcel(value) {
+      if (value instanceof Date) {
+        return `${value.getUTCFullYear()}-${String(value.getUTCMonth() + 1).padStart(2, '0')}-${String(value.getUTCDate()).padStart(2, '0')}`
+      }
+      if (typeof value === 'number' && value > 0 && value < 100000) {
+        const date = excelDateToJsDate(value)
+        return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}-${String(date.getUTCDate()).padStart(2, '0')}`
+      }
+      const str = String(value).trim()
+      const dateMatch = str.match(/(\d{4})[-/](\d{1,2})[-/](\d{1,2})/) || str.match(/(\d{1,2})[-/](\d{1,2})[-/](\d{4})/) || str.match(/(\d{4})(\d{2})(\d{2})/)
+      if (dateMatch) {
+        let year, month, day
+        if (dateMatch[4] !== undefined) {
+          year = dateMatch[3]
+          month = dateMatch[1]
+          day = dateMatch[2]
+        } else if (dateMatch[3] !== undefined) {
+          year = dateMatch[1]
+          month = dateMatch[2]
+          day = dateMatch[3]
+        } else {
+          year = dateMatch[1]
+          month = dateMatch[2]
+          day = dateMatch[3]
+        }
+        return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+      }
+      return str
+    }
+
+    function formatTimeExcel(value) {
+      if (value instanceof Date) {
+        return `${String(value.getHours()).padStart(2, '0')}:${String(value.getMinutes()).padStart(2, '0')}:${String(value.getSeconds()).padStart(2, '0')}`
+      }
+      if (typeof value === 'number') {
+        if (value >= 1 && value < 100000) {
+          const baseDate = new Date(Date.UTC(1899, 11, 30))
+          const milliseconds = value * 86400 * 1000
+          const date = new Date(baseDate.getTime() + milliseconds)
+          return `${String(date.getUTCHours()).padStart(2, '0')}:${String(date.getUTCMinutes()).padStart(2, '0')}:${String(date.getUTCSeconds()).padStart(2, '0')}`
+        }
+        if (value >= 0 && value < 1) {
+          const hours = Math.floor(value * 24)
+          const minutes = Math.floor((value * 24 - hours) * 60)
+          const seconds = Math.floor(((value * 24 - hours) * 60 - minutes) * 60)
+          return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
+        }
+      }
+      const str = String(value).trim()
+      const timeMatch = str.match(/(\d{1,2}):(\d{2}):(\d{2})/) || str.match(/(\d{1,2}):(\d{2})/)
+      if (timeMatch) {
+        return `${String(timeMatch[1]).padStart(2, '0')}:${String(timeMatch[2]).padStart(2, '0')}:${String(timeMatch[3] || '00').padStart(2, '0')}`
+      }
+      return str
+    }
+
+    function parseExcelFile(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onload = (e) => {
+          try {
+            const data = new Uint8Array(e.target.result)
+            const workbook = XLSX.read(data, { type: 'array', cellDates: false })
+            const sheetName = workbook.SheetNames[0]
+            const worksheet = workbook.Sheets[sheetName]
+            const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 })
+            
+            const headers = jsonData[0].map(h => String(h).trim())
+            const records = []
+            
+            for (let i = 1; i < jsonData.length; i++) {
+              const row = jsonData[i]
+              if (!row || row.every(cell => cell === undefined || cell === null || String(cell).trim() === '')) {
+                continue
+              }
+              const record = {}
+              headers.forEach((header, idx) => {
+                if (row[idx] !== undefined && row[idx] !== null) {
+                  let cellValue = row[idx]
+                  if (header === '出勤日期') {
+                    cellValue = formatDateExcel(cellValue)
+                  } else if (header === '出勤时间') {
+                    cellValue = formatTimeExcel(cellValue)
+                  }
+                  record[header] = cellValue
+                }
+              })
+              records.push(record)
+            }
+            resolve({ headers, records })
+          } catch (error) {
+            reject(error)
+          }
+        }
+        reader.onerror = reject
+        reader.readAsArrayBuffer(file)
+      })
+    }
+
+    function exportToExcel(data, filename) {
+      const summary = getSummary(data)
+      const totalHours = summary.reduce((sum, s) => sum + s.总工时, 0)
+      const totalOvertime = summary.reduce((sum, s) => sum + s.加班工时, 0)
+      const totalDays = summary.reduce((sum, s) => sum + s.出勤天数, 0)
+      const totalWorkers = summary.length
+
+      const exportData = data.map(row => {
+        const { 出勤天数, ...rest } = row
+        return rest
+      })
+      exportData.push({})
+      exportData.push({ 姓名: '汇总', 岗位: '', 入场时间: '', 出场时间: '', 工时: '', 加班工时: '', 类型: '' })
+      exportData.push({ 姓名: '', 岗位: '', 入场时间: '总工时', 出场时间: totalHours.toFixed(2) + ' 小时', 工时: '', 加班工时: '', 类型: '' })
+      exportData.push({ 姓名: '', 岗位: '', 入场时间: '加班工时', 出场时间: totalOvertime.toFixed(2) + ' 小时', 工时: '', 加班工时: '', 类型: '' })
+      exportData.push({ 姓名: '', 岗位: '', 入场时间: '总出勤天数', 出场时间: totalDays + ' 天', 工时: '', 加班工时: '', 类型: '' })
+      exportData.push({ 姓名: '', 岗位: '', 入场时间: '总人数', 出场时间: totalWorkers + ' 人', 工时: '', 加班工时: '', 类型: '' })
+
+      const worksheet = XLSX.utils.json_to_sheet(exportData)
+      const workbook = XLSX.utils.book_new()
+      XLSX.utils.book_append_sheet(workbook, worksheet, '工时计算结果')
+      const wscols = [
+        { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, 
+        { wch: 12 }, { wch: 15 }, { wch: 12 }, { wch: 12 }, 
+        { wch: 10 }, { wch: 12 }, { wch: 12 }, { wch: 10 }, 
+        { wch: 12 }, { wch: 10 }
+      ]
+      worksheet['!cols'] = wscols
+      XLSX.writeFile(workbook, `${filename}.xlsx`)
+    }
+
+    function exportMultipleTypes() {
+      if (currentResults.length === 0) {
+        showMessage('暂无数据可导出', 'error')
+        return
+      }
+
+      const selectedTypes = Array.from(document.querySelectorAll('.export-type:checked')).map(cb => cb.value)
+      if (selectedTypes.length === 0) {
+        showMessage('请至少选择一种导出类型', 'error')
+        return
+      }
+
+      const workbook = XLSX.utils.book_new()
+      let exportedCount = 0
+
+      if (selectedTypes.includes('detail')) {
+        const exportData = currentResults.map(row => {
+          const { 出勤天数, ...rest } = row
+          return { ...rest, 节假日: isHoliday(row.出勤日期) || '' }
+        })
+        const summary = getSummary(currentResults)
+        const totalHours = summary.reduce((sum, s) => sum + s.总工时, 0)
+        const totalOvertime = summary.reduce((sum, s) => sum + s.加班工时, 0)
+        const totalDays = summary.reduce((sum, s) => sum + s.出勤天数, 0)
+        const totalWorkers = summary.length
+        exportData.push({})
+        exportData.push({ 姓名: '汇总', 岗位: '', 入场时间: '', 出场时间: '', 工时: '', 加班工时: '', 类型: '', 节假日: '' })
+        exportData.push({ 姓名: '', 岗位: '', 入场时间: '总工时', 出场时间: totalHours.toFixed(2) + ' 小时', 工时: '', 加班工时: '', 类型: '', 节假日: '' })
+        exportData.push({ 姓名: '', 岗位: '', 入场时间: '加班工时', 出场时间: totalOvertime.toFixed(2) + ' 小时', 工时: '', 加班工时: '', 类型: '', 节假日: '' })
+        exportData.push({ 姓名: '', 岗位: '', 入场时间: '总出勤天数', 出场时间: totalDays + ' 天', 工时: '', 加班工时: '', 类型: '', 节假日: '' })
+        exportData.push({ 姓名: '', 岗位: '', 入场时间: '总人数', 出场时间: totalWorkers + ' 人', 工时: '', 加班工时: '', 类型: '', 节假日: '' })
+        
+        const worksheet = XLSX.utils.json_to_sheet(exportData)
+        worksheet['!cols'] = [
+          { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, 
+          { wch: 12 }, { wch: 15 }, { wch: 12 }, { wch: 12 }, 
+          { wch: 10 }, { wch: 12 }, { wch: 12 }, { wch: 10 }, 
+          { wch: 12 }, { wch: 10 }, { wch: 12 }
+        ]
+        XLSX.utils.book_append_sheet(workbook, worksheet, '工时明细')
+        exportedCount++
+      }
+
+      if (selectedTypes.includes('summary')) {
+        const summary = getSummary(currentResults)
+        const worksheet = XLSX.utils.json_to_sheet(summary)
+        worksheet['!cols'] = [{ wch: 15 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 15 }, { wch: 15 }]
+        XLSX.utils.book_append_sheet(workbook, worksheet, '按人汇总')
+        exportedCount++
+      }
+
+      if (selectedTypes.includes('normalDetail')) {
+        const normalData = currentResults.filter(row => row.类型 === '正常')
+        if (normalData.length > 0) {
+          const exportData = normalData.map(row => {
+            const { 出勤天数, ...rest } = row
+            return { ...rest, 节假日: isHoliday(row.出勤日期) || '' }
+          })
+
+          const totalHours = normalData.reduce((sum, row) => sum + (row.工时 || 0), 0)
+          const totalOvertime = normalData.reduce((sum, row) => sum + (row.加班工时 || 0), 0)
+          const totalDays = normalData.length
+          const totalWorkers = new Set(normalData.map(row => row.姓名 || row.岗位)).size
+
+          exportData.push({})
+          exportData.push({ 姓名: '汇总', 岗位: '', 入场时间: '', 出场时间: '', 工时: '', 加班工时: '', 类型: '', 节假日: '' })
+          exportData.push({ 姓名: '', 岗位: '', 入场时间: '总工时', 出场时间: totalHours.toFixed(2) + ' 小时', 工时: '', 加班工时: '', 类型: '', 节假日: '' })
+          exportData.push({ 姓名: '', 岗位: '', 入场时间: '加班工时', 出场时间: totalOvertime.toFixed(2) + ' 小时', 工时: '', 加班工时: '', 类型: '', 节假日: '' })
+          exportData.push({ 姓名: '', 岗位: '', 入场时间: '总出勤天数', 出场时间: totalDays + ' 天', 工时: '', 加班工时: '', 类型: '', 节假日: '' })
+          exportData.push({ 姓名: '', 岗位: '', 入场时间: '总人数', 出场时间: totalWorkers + ' 人', 工时: '', 加班工时: '', 类型: '', 节假日: '' })
+
+          const worksheet = XLSX.utils.json_to_sheet(exportData)
+          worksheet['!cols'] = [
+            { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, 
+            { wch: 12 }, { wch: 15 }, { wch: 12 }, { wch: 12 }, 
+            { wch: 10 }, { wch: 12 }, { wch: 12 }, { wch: 10 }, 
+            { wch: 12 }, { wch: 10 }, { wch: 12 }
+          ]
+          XLSX.utils.book_append_sheet(workbook, worksheet, '正常工时明细')
+          exportedCount++
+        }
+      }
+
+      if (selectedTypes.includes('normalSummary')) {
+        const normalData = currentResults.filter(row => row.类型 === '正常')
+        if (normalData.length > 0) {
+          const summary = {}
+          normalData.forEach(item => {
+            const key = item.姓名 || item.岗位
+            if (!summary[key]) {
+              summary[key] = { 所属组织: item.所属组织 || '-', 姓名: item.姓名 || '-', 岗位: item.岗位 || '-', 总工时: 0, 出勤天数: 0, 加班工时: 0 }
+            }
+            summary[key].总工时 += item.工时
+            summary[key].出勤天数 += 1
+            summary[key].加班工时 += item.加班工时 || 0
+          })
+          const summaryArray = Object.values(summary).sort((a, b) => b.总工时 - a.总工时)
+          const worksheet = XLSX.utils.json_to_sheet(summaryArray)
+          worksheet['!cols'] = [{ wch: 15 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 15 }, { wch: 15 }]
+          XLSX.utils.book_append_sheet(workbook, worksheet, '正常工时汇总')
+          exportedCount++
+        }
+      }
+
+      XLSX.writeFile(workbook, `${currentFilename}_多类型导出.xlsx`)
+      showMessage(`成功导出 ${exportedCount} 个工作表`, 'success')
+    }
+
+    function exportSummaryToExcel(summary, filename) {
+      const worksheet = XLSX.utils.json_to_sheet(summary)
+      const workbook = XLSX.utils.book_new()
+      XLSX.utils.book_append_sheet(workbook, worksheet, '工时汇总')
+      const wscols = [{ wch: 15 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 15 }, { wch: 15 }]
+      worksheet['!cols'] = wscols
+      XLSX.writeFile(workbook, `${filename}.xlsx`)
+    }
+
+    function downloadTemplate() {
+      const templateData = [
+        { 所属组织: '', 岗位: '', 姓名: '', 出勤标段: '', 出勤工区: '', 防护区等级: '', 门禁设备名称: '', 进出方向: '', 出勤日期: '', 出勤时间: '' },
+        { 所属组织: '施工一队', 岗位: '电工', 姓名: '张三', 出勤标段: '一标段', 出勤工区: 'A工区', 防护区等级: '二级', 门禁设备名称: '东门', 进出方向: '进', 出勤日期: '2024-01-01', 出勤时间: '08:00:00' },
+        { 所属组织: '施工一队', 岗位: '电工', 姓名: '张三', 出勤标段: '一标段', 出勤工区: 'A工区', 防护区等级: '二级', 门禁设备名称: '东门', 进出方向: '出', 出勤日期: '2024-01-01', 出勤时间: '17:00:00' },
+        { 所属组织: '施工二队', 岗位: '焊工', 姓名: '李四', 出勤标段: '二标段', 出勤工区: 'B工区', 防护区等级: '一级', 门禁设备名称: '南门', 进出方向: '进', 出勤日期: '2024-01-01', 出勤时间: '07:30:00' },
+        { 所属组织: '施工二队', 岗位: '焊工', 姓名: '李四', 出勤标段: '二标段', 出勤工区: 'B工区', 防护区等级: '一级', 门禁设备名称: '南门', 进出方向: '出', 出勤日期: '2024-01-01', 出勤时间: '18:30:00' },
+      ]
+      const worksheet = XLSX.utils.json_to_sheet(templateData)
+      const workbook = XLSX.utils.book_new()
+      XLSX.utils.book_append_sheet(workbook, worksheet, '工时导入模板')
+      const wscols = [
+        { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, 
+        { wch: 12 }, { wch: 15 }, { wch: 10 }, { wch: 12 }, { wch: 12 }
+      ]
+      worksheet['!cols'] = wscols
+      XLSX.writeFile(workbook, '工时导入模板.xlsx')
+    }
+
+    function showMessage(text, type) {
+      const message = document.createElement('div')
+      message.className = `message message-${type}`
+      message.textContent = text
+      document.body.appendChild(message)
+      setTimeout(() => message.remove(), 3000)
+    }
+
+    const sampleData = [
+      { 所属组织: '施工一队', 岗位: '电工', 姓名: '张三', 出勤标段: '一标段', 出勤工区: 'A工区', 防护区等级: '二级', 门禁设备名称: '东门', 出勤日期: '2024-01-01', 进出方向: '进', 出勤时间: '08:00:00' },
+      { 所属组织: '施工一队', 岗位: '电工', 姓名: '张三', 出勤标段: '一标段', 出勤工区: 'A工区', 防护区等级: '二级', 门禁设备名称: '东门', 出勤日期: '2024-01-01', 进出方向: '出', 出勤时间: '17:00:00' },
+      { 所属组织: '施工一队', 岗位: '电工', 姓名: '张三', 出勤标段: '一标段', 出勤工区: 'A工区', 防护区等级: '二级', 门禁设备名称: '东门', 出勤日期: '2024-01-02', 进出方向: '进', 出勤时间: '07:30:00' },
+      { 所属组织: '施工一队', 岗位: '电工', 姓名: '张三', 出勤标段: '一标段', 出勤工区: 'A工区', 防护区等级: '二级', 门禁设备名称: '东门', 出勤日期: '2024-01-02', 进出方向: '进', 出勤时间: '08:00:00' },
+      { 所属组织: '施工一队', 岗位: '电工', 姓名: '张三', 出勤标段: '一标段', 出勤工区: 'A工区', 防护区等级: '二级', 门禁设备名称: '东门', 出勤日期: '2024-01-02', 进出方向: '出', 出勤时间: '16:30:00' },
+      { 所属组织: '施工一队', 岗位: '电工', 姓名: '张三', 出勤标段: '一标段', 出勤工区: 'A工区', 防护区等级: '二级', 门禁设备名称: '东门', 出勤日期: '2024-01-02', 进出方向: '出', 出勤时间: '17:00:00' },
+      { 所属组织: '施工二队', 岗位: '焊工', 姓名: '李四', 出勤标段: '二标段', 出勤工区: 'B工区', 防护区等级: '一级', 门禁设备名称: '南门', 出勤日期: '2024-01-01', 进出方向: '进', 出勤时间: '09:00:00' },
+      { 所属组织: '施工二队', 岗位: '焊工', 姓名: '李四', 出勤标段: '二标段', 出勤工区: 'B工区', 防护区等级: '一级', 门禁设备名称: '南门', 出勤日期: '2024-01-01', 进出方向: '出', 出勤时间: '23:30:00' },
+      { 所属组织: '施工三队', 岗位: '木工', 姓名: '王五', 出勤标段: '一标段', 出勤工区: 'C工区', 防护区等级: '三级', 门禁设备名称: '西门', 出勤日期: '2024-01-01', 进出方向: '进', 出勤时间: '08:00:00' },
+      { 所属组织: '施工三队', 岗位: '油漆工', 姓名: '赵六', 出勤标段: '三标段', 出勤工区: 'D工区', 防护区等级: '二级', 门禁设备名称: '北门', 出勤日期: '2024-01-01', 进出方向: '出', 出勤时间: '17:00:00' },
+      { 所属组织: '施工一队', 岗位: '钢筋工', 姓名: '钱七', 出勤标段: '一标段', 出勤工区: 'A工区', 防护区等级: '一级', 门禁设备名称: '东门', 出勤日期: '2024-01-01', 进出方向: '进场', 出勤时间: '06:00:00' },
+      { 所属组织: '施工一队', 岗位: '钢筋工', 姓名: '钱七', 出勤标段: '一标段', 出勤工区: 'A工区', 防护区等级: '一级', 门禁设备名称: '东门', 出勤日期: '2024-01-01', 进出方向: '出场', 出勤时间: '18:00:00' },
+    ]
+
+    let currentResults = []
+    let currentSummary = []
+    let currentFilename = ''
+
+    const uploadArea = document.getElementById('uploadArea')
+    const fileInput = document.getElementById('fileInput')
+    const uploadBtn = document.getElementById('uploadBtn')
+    const useSampleBtn = document.getElementById('useSampleBtn')
+    const downloadTemplateBtn = document.getElementById('downloadTemplateBtn')
+    const loadingOverlay = document.getElementById('loadingOverlay')
+    const resultSection = document.getElementById('resultSection')
+    const emptySection = document.getElementById('emptySection')
+
+    uploadBtn.addEventListener('click', () => fileInput.click())
+    uploadArea.addEventListener('click', () => fileInput.click())
+    downloadTemplateBtn.addEventListener('click', () => {
+      downloadTemplate()
+      showMessage('导入模板下载成功', 'success')
+    })
+
+    uploadArea.addEventListener('dragover', (e) => {
+      e.preventDefault()
+      uploadArea.classList.add('dragover')
+    })
+
+    uploadArea.addEventListener('dragleave', () => {
+      uploadArea.classList.remove('dragover')
+    })
+
+    uploadArea.addEventListener('drop', (e) => {
+      e.preventDefault()
+      uploadArea.classList.remove('dragover')
+      const files = Array.from(e.dataTransfer.files).filter(f => f.name.match(/\.(xlsx|xls)$/))
+      if (files.length > 0) {
+        handleFiles(files)
+      } else {
+        showMessage('请上传有效的Excel文件', 'error')
+      }
+    })
+
+    fileInput.addEventListener('change', (e) => {
+      if (e.target.files.length > 0) {
+        const files = Array.from(e.target.files).filter(f => f.name.match(/\.(xlsx|xls)$/))
+        if (files.length > 0) {
+          handleFiles(files)
+        } else {
+          showMessage('请选择有效的Excel文件', 'error')
+        }
+      }
+    })
+
+    const holidayStartDateInput = document.getElementById('holidayStartDate')
+    const holidayEndDateInput = document.getElementById('holidayEndDate')
+    const holidayNameSelect = document.getElementById('holidayName')
+    const addHolidayBtn = document.getElementById('addHolidayBtn')
+    const holidayList = document.getElementById('holidayList')
+
+    function renderHolidayList() {
+      holidayList.innerHTML = ''
+      const dates = Object.keys(customHolidays).sort()
+      dates.forEach(date => {
+        const name = customHolidays[date]
+        const item = document.createElement('div')
+        item.style.display = 'flex'
+        item.style.alignItems = 'center'
+        item.style.justifyContent = 'space-between'
+        item.style.padding = '6px 10px'
+        item.style.background = '#f8f9fa'
+        item.style.borderRadius = '4px'
+        item.style.marginBottom = '4px'
+        item.innerHTML = `
+          <span style="flex: 1;">${date} - ${name}</span>
+          <button class="btn btn-danger btn-sm" style="padding: 2px 8px;">删除</button>
+        `
+        item.querySelector('button').addEventListener('click', () => {
+          delete customHolidays[date]
+          renderHolidayList()
+        })
+        holidayList.appendChild(item)
+      })
+      if (dates.length === 0) {
+        holidayList.innerHTML = '<p style="color: #999; text-align: center; padding: 10px;">暂无自定义节假日</p>'
+      }
+    }
+
+    addHolidayBtn.addEventListener('click', () => {
+      const startDate = holidayStartDateInput.value
+      const endDate = holidayEndDateInput.value || startDate
+      const name = holidayNameSelect.value
+      
+      if (!startDate) {
+        showMessage('请选择开始日期', 'error')
+        return
+      }
+      
+      const start = new Date(startDate)
+      const end = new Date(endDate)
+      
+      if (start > end) {
+        showMessage('结束日期不能早于开始日期', 'error')
+        return
+      }
+      
+      let addedCount = 0
+      const current = new Date(start)
+      while (current <= end) {
+        const dateStr = current.toISOString().split('T')[0]
+        customHolidays[dateStr] = name
+        addedCount++
+        current.setDate(current.getDate() + 1)
+      }
+      
+      holidayStartDateInput.value = ''
+      holidayEndDateInput.value = ''
+      renderHolidayList()
+      showMessage(`已添加 ${addedCount} 天节假日：${name}`, 'success')
+    })
+
+    renderHolidayList()
+
+    useSampleBtn.addEventListener('click', () => {
+      loadingOverlay.style.display = 'flex'
+      setTimeout(() => {
+        const results = calculateWorkHours(sampleData)
+        const summary = getSummary(results)
+        
+        currentResults = results
+        currentSummary = summary
+        currentFilename = '示例数据'
+        
+        renderResults(results)
+        renderSummary(summary)
+        
+        emptySection.style.display = 'none'
+        resultSection.style.display = 'block'
+        
+        showMessage(`成功处理 ${sampleData.length} 条示例记录`, 'success')
+        loadingOverlay.style.display = 'none'
+      }, 500)
+    })
+
+    async function handleFiles(files) {
+      loadingOverlay.style.display = 'flex'
+      try {
+        let allRecords = []
+        let allFilenames = []
+        
+        for (const file of files) {
+          const { records, headers } = await parseExcelFile(file)
+          
+          const missingHeaders = REQUIRED_HEADERS.filter(h => !headers.includes(h))
+          if (missingHeaders.length > 0) {
+            showMessage(`文件 ${file.name} 缺少必需列：${missingHeaders.join('、')}，已跳过`, 'warning')
+            continue
+          }
+          
+          allRecords = allRecords.concat(records)
+          allFilenames.push(file.name)
+        }
+        
+        if (allRecords.length === 0) {
+          throw new Error('没有有效的数据文件')
+        }
+        
+        const results = calculateWorkHours(allRecords)
+        const summary = getSummary(results)
+        
+        currentResults = results
+        currentSummary = summary
+        currentFilename = files.length === 1 ? files[0].name.replace(/\.[^/.]+$/, '') : '批量导入'
+        
+        renderResults(results)
+        renderSummary(summary)
+        
+        emptySection.style.display = 'none'
+        resultSection.style.display = 'block'
+        
+        showMessage(`成功处理 ${files.length} 个文件，共 ${allRecords.length} 条记录，生成 ${results.length} 条工时记录`, 'success')
+      } catch (error) {
+        console.error('文件处理错误:', error)
+        showMessage('错误: ' + error.message, 'error')
+      } finally {
+        loadingOverlay.style.display = 'none'
+      }
+    }
+
+    function renderResults(results) {
+      const table = document.getElementById('resultsTable')
+      let html = '<thead><tr><th>所属组织</th><th>岗位</th><th>姓名</th><th>出勤标段</th><th>出勤工区</th><th>防护区等级</th><th>门禁设备名称</th><th>出勤日期</th><th>星期</th><th>入场时间</th><th>出场时间</th><th>工时（小时）</th><th>加班工时（小时）</th><th>类型</th></tr></thead><tbody>'
+      results.forEach(row => {
+        const tagClass = {
+          '正常': 'tag-normal',
+          '仅有入场': 'tag-entry',
+          '仅有出场': 'tag-exit',
+          '跨天': 'tag-cross'
+        }[row.类型] || 'tag-normal'
+        
+        const hoursColor = row.工时 >= 8 ? '#52c41a' : row.工时 >= 4 ? '#fa8c16' : '#cf1322'
+        
+        const weekdayColor = (row.星期 === '星期六' || row.星期 === '星期日') ? '#cf1322' : '#666'
+        
+        html += `<tr>
+          <td>${row.所属组织}</td>
+          <td>${row.岗位}</td>
+          <td>${row.姓名}</td>
+          <td>${row.出勤标段}</td>
+          <td>${row.出勤工区}</td>
+          <td>${row.防护区等级}</td>
+          <td>${row.门禁设备名称}</td>
+          <td>${row.出勤日期}</td>
+          <td style="color: ${weekdayColor}; font-weight: 500;">${row.星期}</td>
+          <td>${row.入场时间}</td>
+          <td>${row.出场时间}</td>
+          <td style="color: ${hoursColor}; font-weight: 600;">${row.工时}</td>
+          <td style="color: #722ed1; font-weight: 600;">${row.加班工时}</td>
+          <td><span class="tag ${tagClass}">${row.类型}</span></td>
+        </tr>`
+      })
+      html += '</tbody>'
+      table.innerHTML = html
+    }
+
+    function renderSummary(summary) {
+      const table = document.getElementById('summaryTable')
+      let html = '<thead><tr><th>所属组织</th><th>姓名</th><th>岗位</th><th>出勤天数</th><th>总工时（小时）</th><th>加班工时（小时）</th></tr></thead><tbody>'
+      summary.forEach(row => {
+        html += `<tr>
+          <td>${row.所属组织}</td>
+          <td>${row.姓名}</td>
+          <td>${row.岗位}</td>
+          <td><strong>${row.出勤天数} 天</strong></td>
+          <td><strong style="color: #1890ff;">${row.总工时.toFixed(2)}</strong></td>
+          <td><strong style="color: #722ed1;">${row.加班工时.toFixed(2)}</strong></td>
+        </tr>`
+      })
+      html += '</tbody>'
+      table.innerHTML = html
+
+      const totalHours = summary.reduce((sum, s) => sum + s.总工时, 0)
+      const totalDays = summary.reduce((sum, s) => sum + s.出勤天数, 0)
+      const totalOvertime = summary.reduce((sum, s) => sum + s.加班工时, 0)
+      document.getElementById('totalHours').textContent = totalHours.toFixed(2)
+      document.getElementById('totalOvertime').textContent = totalOvertime.toFixed(2)
+      document.getElementById('totalDays').textContent = totalDays
+      document.getElementById('totalWorkers').textContent = summary.length
+    }
+
+    document.querySelectorAll('.tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'))
+        tab.classList.add('active')
+        const tabName = tab.dataset.tab
+        document.getElementById('resultsPanel').style.display = tabName === 'results' ? 'block' : 'none'
+        document.getElementById('summaryPanel').style.display = tabName === 'summary' ? 'block' : 'none'
+      })
+    })
+
+    document.getElementById('exportResultsBtn').addEventListener('click', () => {
+      if (currentResults.length === 0) {
+        showMessage('暂无数据可导出', 'error')
+        return
+      }
+      exportToExcel(currentResults, `${currentFilename}_工时明细`)
+      showMessage('工时明细导出成功', 'success')
+    })
+
+    document.getElementById('exportSummaryBtn').addEventListener('click', () => {
+      if (currentSummary.length === 0) {
+        showMessage('暂无数据可导出', 'error')
+        return
+      }
+      exportSummaryToExcel(currentSummary, `${currentFilename}_工时汇总`)
+      showMessage('工时汇总导出成功', 'success')
+    })
+
+    document.getElementById('resetSettingsBtn').addEventListener('click', () => {
+      document.getElementById('lunchDeduction').value = '1'
+      document.getElementById('defaultEntryTime').value = '07:00'
+      document.getElementById('defaultExitTime').value = '17:30'
+      showMessage('设置已恢复默认值', 'success')
+    })
+
+    document.getElementById('exportSelectedBtn').addEventListener('click', () => {
+      exportMultipleTypes()
+    })
+  </script>
+</body>
+</html>
